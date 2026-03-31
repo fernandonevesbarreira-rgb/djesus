@@ -292,11 +292,8 @@ const App = {
   async showDB(){
     activeEnc = null;
     document.getElementById('topbar').style.display='none';
-    const [clientes, fornecedores, tecidos, modelos, acessorios] = await Promise.all([
-      api.get('/api/clientes'), api.get('/api/fornecedores'), api.get('/api/tecidos'),
-      api.get('/api/modelos'), api.get('/api/acessorios')
-    ]);
-    db = { clientes, fornecedores, tecidos, modelos, acessorios };
+    await loadBD();
+    db = BD;
     renderDB('clientes');
   }
 };
@@ -1256,7 +1253,7 @@ const dbFields = {
 
 function renderDB(tab){
   const content = document.getElementById('content');
-  const items = db[tab]||[];
+  const items = BD[tab]||[];
   const fields = dbFields[tab]||[];
   const tabs = Object.keys(dbLabels).map(t=>`<button class="btn ${t===tab?'btn-blue':'btn-out'} btn-sm" onclick="renderDB('${t}')" style="margin-right:4px">${dbLabels[t]}</button>`).join('');
   content.innerHTML = `
@@ -1291,7 +1288,7 @@ function renderDB(tab){
 let dbEditId = null;
 function openDBModal(tab, id){
   dbEditId = id;
-  const item = id ? (db[tab]||[]).find(x=>x.id===id)||{} : {};
+  const item = id ? (BD[tab]||[]).find(x=>x.id===id)||{} : {};
   const fields = dbFields[tab]||[];
   document.getElementById('db-modal-title').textContent = id?'Editar':'Novo';
   document.getElementById('db-modal-form').innerHTML = fields.map(([k,l])=>`
@@ -1307,13 +1304,13 @@ async function saveDBItem(tab){
   const data = {};
   fields.forEach(([k])=>{ const el=document.getElementById('dbf-'+k); if(el) data[k]=el.value; });
   if(dbEditId){
-    await api.put(`/api/${tab}/${dbEditId}`, data);
-    const idx = (db[tab]||[]).findIndex(x=>x.id===dbEditId);
-    if(idx>=0) db[tab][idx]={...db[tab][idx],...data};
+    await api.put(`/api/bd/${tab}/${dbEditId}`, data);
+    const idx = (BD[tab]||[]).findIndex(x=>x.id===dbEditId);
+    if(idx>=0) BD[tab][idx]={...db[tab][idx],...data};
   } else {
-    const r = await api.post(`/api/${tab}`, data);
-    if(!db[tab]) db[tab]=[];
-    db[tab].push({id:r.id,...data});
+    const r = await api.post(`/api/bd/${tab}`, data);
+    if(!BD[tab]) BD[tab]=[];
+    BD[tab].push({id:r.id,...data});
   }
   document.getElementById('db-modal').style.display='none';
   renderDB(tab);
@@ -1322,8 +1319,8 @@ async function saveDBItem(tab){
 
 async function deleteDBItem(tab, id){
   if(!confirm('Eliminar?')) return;
-  await api.del(`/api/${tab}/${id}`);
-  db[tab] = (db[tab]||[]).filter(x=>x.id!==id);
+  await api.del(`/api/bd/${tab}/${id}`);
+  BD[tab] = (BD[tab]||[]).filter(x=>x.id!==id);
   renderDB(tab);
   showToast('🗑 Eliminado');
 }
