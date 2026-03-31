@@ -1267,8 +1267,8 @@ function renderDB(tab){
         <tbody>${items.map(item=>`<tr>
           ${fields.slice(0,4).map(f=>`<td>${item[f[0]]||'—'}</td>`).join('')}
           <td style="white-space:nowrap">
-            <button class="btn btn-out btn-sm" onclick="openDBModal('${tab}',${item.id})">✏️</button>
-            <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;padding:4px 8px;border-radius:4px" onclick="deleteDBItem('${tab}',${item.id})">🗑</button>
+            <button class="btn btn-out btn-sm" onclick="openDBModal('${tab}',${item._id||item.id})">✏️</button>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;padding:4px 8px;border-radius:4px" onclick="deleteDBItem('${tab}',${item._id||item.id})">🗑</button>
           </td>
         </tr>`).join('')}</tbody>
       </table>
@@ -1288,29 +1288,46 @@ function renderDB(tab){
 let dbEditId = null;
 function openDBModal(tab, id){
   dbEditId = id;
-  const item = id ? (BD[tab]||[]).find(x=>x.id===id)||{} : {};
+  const item = id ? (BD[tab]||[]).find(x=>x._id===id)||{} : {};
   const fields = dbFields[tab]||[];
   document.getElementById('db-modal-title').textContent = id?'Editar':'Novo';
-  document.getElementById('db-modal-form').innerHTML = fields.map(([k,l])=>`
-    <div class="f" style="margin-bottom:10px">
+  document.getElementById('db-modal-form').innerHTML = fields.map(([k,l])=>{
+    // Special case: fornecedores tipo = select
+    if(tab==='fornecedores' && k==='tipo'){
+      return `<div class="f" style="margin-bottom:10px">
+        <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;display:block">${l}</label>
+        <select id="dbf-${k}" style="width:100%;padding:8px;border:1.5px solid #e5e0d8;border-radius:6px;font-size:13px">
+          <option value="">— Seleciona —</option>
+          <option value="tecido" ${item[k]==='tecido'?'selected':''}>Tecido</option>
+          <option value="confecao" ${item[k]==='confecao'?'selected':''}>Confeção</option>
+          <option value="acessorios" ${item[k]==='acessorios'?'selected':''}>Acessórios</option>
+          <option value="outro" ${item[k]==='outro'?'selected':''}>Outro</option>
+        </select>
+      </div>`;
+    }
+    return `<div class="f" style="margin-bottom:10px">
       <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;display:block">${l}</label>
       <input id="dbf-${k}" value="${item[k]||''}" style="width:100%;padding:8px;border:1.5px solid #e5e0d8;border-radius:6px;font-size:13px">
-    </div>`).join('');
+    </div>`;
+  }).join('');
   document.getElementById('db-modal').style.display = 'flex';
 }
 
 async function saveDBItem(tab){
   const fields = dbFields[tab]||[];
   const data = {};
-  fields.forEach(([k])=>{ const el=document.getElementById('dbf-'+k); if(el) data[k]=el.value; });
+  fields.forEach(([k])=>{
+    const el=document.getElementById('dbf-'+k);
+    if(el) data[k]=el.value;
+  });
   if(dbEditId){
     await api.put(`/api/bd/${tab}/${dbEditId}`, data);
-    const idx = (BD[tab]||[]).findIndex(x=>x.id===dbEditId);
-    if(idx>=0) BD[tab][idx]={...db[tab][idx],...data};
+    const idx = (BD[tab]||[]).findIndex(x=>x._id===dbEditId);
+    if(idx>=0) BD[tab][idx]={...BD[tab][idx],...data};
   } else {
     const r = await api.post(`/api/bd/${tab}`, data);
     if(!BD[tab]) BD[tab]=[];
-    BD[tab].push({id:r.id,...data});
+    BD[tab].push({_id:r.id,...data});
   }
   document.getElementById('db-modal').style.display='none';
   renderDB(tab);
@@ -1320,7 +1337,7 @@ async function saveDBItem(tab){
 async function deleteDBItem(tab, id){
   if(!confirm('Eliminar?')) return;
   await api.del(`/api/bd/${tab}/${id}`);
-  BD[tab] = (BD[tab]||[]).filter(x=>x.id!==id);
+  BD[tab] = (BD[tab]||[]).filter(x=>(x._id||x.id)!==id);
   renderDB(tab);
   showToast('🗑 Eliminado');
 }
