@@ -133,6 +133,11 @@ input[readonly]{background:var(--paper2);color:var(--ink3);cursor:default}
     </div>
     <button class="btn-nova" onclick="App.novaEncomenda()">+ Nova Encomenda</button>
     <div class="enc-list" id="enc-list"></div>
+    <div style="margin-top:auto;padding:12px 0;border-top:1px solid rgba(255,255,255,0.1)">
+      <div class="nav-link" onclick="App.showDB()" style="display:flex;align-items:center;gap:8px;padding:9px 16px;cursor:pointer;font-size:13px;color:rgba(255,255,255,0.7);">
+        <span>🗄️</span> Base de Dados
+      </div>
+    </div>
   </div>
 
   <!-- Main -->
@@ -282,6 +287,17 @@ const App = {
     await loadEncomendas();
     document.getElementById('topbar').style.display='none';
     document.getElementById('content').innerHTML=`<div class="empty-state"><div style="font-size:48px">🧵</div><h2>Seleciona uma encomenda</h2></div>`;
+  },
+
+  async showDB(){
+    activeEnc = null;
+    document.getElementById('topbar').style.display='none';
+    const [clientes, fornecedores, tecidos, modelos, acessorios] = await Promise.all([
+      api.get('/api/clientes'), api.get('/api/fornecedores'), api.get('/api/tecidos'),
+      api.get('/api/modelos'), api.get('/api/acessorios')
+    ]);
+    db = { clientes, fornecedores, tecidos, modelos, acessorios };
+    renderDB('clientes');
   }
 };
 
@@ -1225,6 +1241,91 @@ function buildPagResumo(){
       <td>${i.dpag||'—'}</td>
       <td><span class="badge ${i.est==='pago'?'badge-conc':'badge-pend'}">${i.est==='pago'?'✅ Pago':'⏳ Pendente'}</span></td>
     </tr>`).join('')}</tbody></table>`;
+}
+
+// ── BASE DE DADOS ──
+let db = {};
+const dbLabels = {clientes:'👥 Clientes',fornecedores:'🏭 Fornecedores',tecidos:'🧵 Tecidos',modelos:'👕 Modelos',acessorios:'🪡 Acessórios'};
+const dbFields = {
+  clientes: [['nome','Nome *'],['contacto','Contacto'],['email','Email'],['tel','Telefone'],['pais','País'],['notas','Notas']],
+  fornecedores: [['nome','Nome *'],['tipo','Tipo (tecido/confecao)'],['pais','País'],['contacto','Contacto'],['email','Email'],['tel','Telefone'],['notas','Notas']],
+  tecidos: [['ref','Referência *'],['forn','Fornecedor'],['tipo','Tipo'],['comp','Composição'],['fio','Construção Fio'],['larg','Largura (m)'],['preco','Preço/m (€)'],['cores','Cores'],['notas','Notas']],
+  modelos: [['ref','Referência *'],['nome','Nome'],['mbase','Base'],['molde','Molde'],['col','Colarinho'],['frente','Frente'],['bolsos','Bolsos'],['botCor','Cor Botão'],['mediaEst','Média Est. (m)'],['custoConf','Custo Conf. (€)'],['etq','Etiquetas'],['notas','Notas']],
+  acessorios: [['nome','Nome *'],['tipo','Tipo'],['preco','Preço'],['forn','Fornecedor'],['ref','Ref.'],['notas','Notas']]
+};
+
+function renderDB(tab){
+  const content = document.getElementById('content');
+  const items = db[tab]||[];
+  const fields = dbFields[tab]||[];
+  const tabs = Object.keys(dbLabels).map(t=>`<button class="btn ${t===tab?'btn-blue':'btn-out'} btn-sm" onclick="renderDB('${t}')" style="margin-right:4px">${dbLabels[t]}</button>`).join('');
+  content.innerHTML = `
+    <div style="padding:20px">
+      <div style="margin-bottom:16px">${tabs}</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+        <button class="btn btn-blue btn-sm" onclick="openDBModal('${tab}',null)">+ Novo</button>
+      </div>
+      <table class="dt">
+        <thead><tr>${fields.slice(0,4).map(f=>`<th>${f[1]}</th>`).join('')}<th></th></tr></thead>
+        <tbody>${items.map(item=>`<tr>
+          ${fields.slice(0,4).map(f=>`<td>${item[f[0]]||'—'}</td>`).join('')}
+          <td style="white-space:nowrap">
+            <button class="btn btn-out btn-sm" onclick="openDBModal('${tab}',${item.id})">✏️</button>
+            <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;padding:4px 8px;border-radius:4px" onclick="deleteDBItem('${tab}',${item.id})">🗑</button>
+          </td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div id="db-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center">
+        <div style="background:white;border-radius:10px;padding:24px;width:480px;max-height:80vh;overflow-y:auto">
+          <h3 id="db-modal-title" style="margin-bottom:16px">Novo</h3>
+          <div id="db-modal-form"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+            <button class="btn btn-out" onclick="document.getElementById('db-modal').style.display='none'">Cancelar</button>
+            <button class="btn btn-blue" onclick="saveDBItem('${tab}')">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+let dbEditId = null;
+function openDBModal(tab, id){
+  dbEditId = id;
+  const item = id ? (db[tab]||[]).find(x=>x.id===id)||{} : {};
+  const fields = dbFields[tab]||[];
+  document.getElementById('db-modal-title').textContent = id?'Editar':'Novo';
+  document.getElementById('db-modal-form').innerHTML = fields.map(([k,l])=>`
+    <div class="f" style="margin-bottom:10px">
+      <label style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:4px;display:block">${l}</label>
+      <input id="dbf-${k}" value="${item[k]||''}" style="width:100%;padding:8px;border:1.5px solid #e5e0d8;border-radius:6px;font-size:13px">
+    </div>`).join('');
+  document.getElementById('db-modal').style.display = 'flex';
+}
+
+async function saveDBItem(tab){
+  const fields = dbFields[tab]||[];
+  const data = {};
+  fields.forEach(([k])=>{ const el=document.getElementById('dbf-'+k); if(el) data[k]=el.value; });
+  if(dbEditId){
+    await api.put(`/api/${tab}/${dbEditId}`, data);
+    const idx = (db[tab]||[]).findIndex(x=>x.id===dbEditId);
+    if(idx>=0) db[tab][idx]={...db[tab][idx],...data};
+  } else {
+    const r = await api.post(`/api/${tab}`, data);
+    if(!db[tab]) db[tab]=[];
+    db[tab].push({id:r.id,...data});
+  }
+  document.getElementById('db-modal').style.display='none';
+  renderDB(tab);
+  showToast('✅ Guardado!');
+}
+
+async function deleteDBItem(tab, id){
+  if(!confirm('Eliminar?')) return;
+  await api.del(`/api/${tab}/${id}`);
+  db[tab] = (db[tab]||[]).filter(x=>x.id!==id);
+  renderDB(tab);
+  showToast('🗑 Eliminado');
 }
 
 // ── INIT ──
