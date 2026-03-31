@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DJESUS — Gestão de Produção</title>
+<style>
+:root{
+  --ink:#1a1a2e;--ink2:#2d2d44;--ink3:#6b7280;--ink4:#9ca3af;
+  --paper:#ffffff;--paper2:#f8f7f4;--paper3:#f0ede8;
+  --border:#e5e0d8;--blue:#2563eb;--bluel:#eff6ff;
+  --green:#16a34a;--greenl:#f0fdf4;--red:#dc2626;--redl:#fef2f2;
+  --gold:#d97706;--goldl:#fffbeb;--goldm:#fde68a;
+  --r:10px;--rsm:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--paper2);color:var(--ink);font-size:13px}
+/* Layout */
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:var(--ink);color:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+/* Sidebar */
+.logo{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.logo h1{font-size:20px;font-weight:800;letter-spacing:.05em;color:#fff}
+.logo p{font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;text-transform:uppercase;letter-spacing:.08em}
+.enc-list{flex:1;overflow-y:auto;padding:10px 0}
+.enc-item{padding:10px 18px;cursor:pointer;border-left:3px solid transparent;transition:all .15s}
+.enc-item:hover{background:rgba(255,255,255,0.08)}
+.enc-item.active{background:rgba(255,255,255,0.12);border-left-color:#60a5fa}
+.enc-item .enc-ref{font-weight:700;font-size:12px;color:#fff}
+.enc-item .enc-sub{font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px}
+.enc-item .enc-estado{display:inline-block;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:700;margin-top:3px}
+.estado-ativa{background:#1d4ed8;color:#fff}
+.estado-concluida{background:#15803d;color:#fff}
+.btn-nova{margin:12px;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:var(--rsm);font-weight:700;cursor:pointer;font-size:12px;letter-spacing:.03em}
+.btn-nova:hover{background:#1d4ed8}
+/* Top bar */
+.topbar{background:var(--paper);border-bottom:1px solid var(--border);padding:0;display:flex;overflow-x:auto;flex-shrink:0}
+.tab{padding:12px 16px;cursor:pointer;border-bottom:2px solid transparent;color:var(--ink3);font-weight:600;font-size:11px;white-space:nowrap;transition:all .15s}
+.tab:hover{color:var(--ink);background:var(--paper2)}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab .tab-n{display:inline-block;width:16px;height:16px;background:var(--paper3);border-radius:50%;font-size:9px;font-weight:800;text-align:center;line-height:16px;margin-right:4px}
+.tab.active .tab-n{background:var(--blue);color:#fff}
+.tab.done .tab-n{background:var(--green);color:#fff}
+/* Content */
+.content{padding:20px;flex:1}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--ink3);gap:12px}
+.empty-state h2{font-size:18px;color:var(--ink2)}
+/* Cards */
+.card{background:var(--paper);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px}
+.card-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.card-body{padding:18px}
+/* Form */
+.fg{display:grid;gap:12px;margin-bottom:14px}
+.fg.g2{grid-template-columns:1fr 1fr}
+.fg.g3{grid-template-columns:1fr 1fr 1fr}
+.fg.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.f{display:flex;flex-direction:column;gap:4px}
+label{font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.05em}
+input,select,textarea{padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--rsm);font-size:13px;font-family:inherit;color:var(--ink);background:var(--paper);transition:border-color .15s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+input.iy{border-color:var(--goldm);background:var(--goldl)}
+input.iy:focus{border-color:var(--gold)}
+input.computed{background:var(--goldl);border-color:var(--goldm);cursor:default;font-family:'Courier New',monospace;font-weight:600}
+input[readonly]{background:var(--paper2);color:var(--ink3);cursor:default}
+/* Buttons */
+.btn{padding:8px 16px;border-radius:var(--rsm);font-weight:700;font-size:12px;cursor:pointer;border:none;transition:all .15s}
+.btn-ink{background:var(--ink);color:#fff}.btn-ink:hover{background:var(--ink2)}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:#1d4ed8}
+.btn-out{background:transparent;border:1.5px solid var(--border);color:var(--ink)}.btn-out:hover{background:var(--paper2)}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#15803d}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#b91c1c}
+.btn-sm{padding:5px 10px;font-size:11px}
+/* Tags */
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-left:4px}
+.tag-auto{background:var(--goldl);color:var(--gold)}
+.tag-real{background:#dbeafe;color:#1d4ed8}
+/* Estado badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-pend{background:#fef3c7;color:#92400e}
+.badge-curso{background:#dbeafe;color:#1e40af}
+.badge-conc{background:#d1fae5;color:#065f46}
+.badge-prob{background:#fee2e2;color:#991b1b}
+/* Estado selector */
+.estado-btns{display:flex;gap:6px;flex-wrap:wrap}
+.estado-btn{padding:4px 10px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--ink3);font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+.estado-btn:hover{border-color:var(--ink3)}
+.estado-btn.pend.active{background:#fef3c7;border-color:#f59e0b;color:#92400e}
+.estado-btn.curso.active{background:#dbeafe;border-color:#3b82f6;color:#1e40af}
+.estado-btn.conc.active{background:#d1fae5;border-color:#22c55e;color:#15803d}
+.estado-btn.prob.active{background:#fee2e2;border-color:#ef4444;color:#991b1b}
+/* Table */
+.dt{width:100%;border-collapse:collapse;font-size:12px}
+.dt th{padding:8px 10px;background:var(--ink);color:#fff;text-align:left;font-size:11px;font-weight:700}
+.dt td{padding:7px 10px;border-bottom:1px solid var(--border)}
+.dt tr:nth-child(even) td{background:var(--paper2)}
+.dt tfoot td{font-weight:700;background:var(--paper3);border-top:2px solid var(--border)}
+/* Divider */
+.sdiv{display:flex;align-items:center;gap:8px;margin:16px 0 10px}
+.sdiv-l{flex:1;height:1px;background:var(--border)}
+.sdiv-t{font-size:10px;font-weight:700;color:var(--ink3);white-space:nowrap;text-transform:uppercase;letter-spacing:.06em}
+/* Action bar */
+.ab{display:flex;justify-content:space-between;padding:14px 0 4px;margin-top:8px}
+/* Toast */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:10px 18px;border-radius:var(--rsm);font-size:12px;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+/* Upload */
+.uz{border:2px dashed var(--border);border-radius:var(--rsm);padding:16px;text-align:center;cursor:pointer;transition:border-color .15s;position:relative}
+.uz:hover{border-color:var(--blue)}
+.uz input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.ufl{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ufi{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--paper2);border:1px solid var(--border);border-radius:var(--rsm);cursor:pointer;font-size:11px}
+.ufi:hover{background:var(--bluel)}
+/* Qty table */
+.qty-table input{width:55px;padding:5px;text-align:center;font-family:'Courier New',monospace;font-weight:700}
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .fg.g3{grid-template-columns:1fr 1fr}
+  .fg.g4{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">
+      <h1>DJESUS</h1>
+      <p>Gestão de Produção</p>
+    </div>
+    <button class="btn-nova" onclick="App.novaEncomenda()">+ Nova Encomenda</button>
+    <div class="enc-list" id="enc-list"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar" id="topbar" style="display:none"></div>
+    <div class="content" id="content">
+      <div class="empty-state">
+        <div style="font-size:48px">🧵</div>
+        <h2>Bem-vindo ao DJESUS</h2>
+        <p>Seleciona uma encomenda ou cria uma nova</p>
+        <button class="btn btn-blue" onclick="App.novaEncomenda()">+ Nova Encomenda</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+// DJESUS — Sistema de Gestão de Produção
+// ══════════════════════════════════════
+
+const SIZES = ['XS','S','M','L','XL','XXL','3XL'];
+
+const TABS = [
+  {id:'enc',       n:'1',  label:'Encomenda'},
+  {id:'tecido',    n:'2',  label:'Ped. Tecido'},
+  {id:'tec-rec',   n:'3',  label:'Rec. Tecido'},
+  {id:'pag-tec',   n:'3B', label:'Pag. Tecido'},
+  {id:'mod-pedido',n:'4',  label:'Ped. Modulação'},
+  {id:'mod',       n:'5',  label:'Rec. Modulação'},
+  {id:'pag-mod',   n:'5B', label:'Pag. Modulação'},
+  {id:'corte',     n:'6',  label:'Corte'},
+  {id:'corte-rec', n:'7',  label:'Rec. Corte'},
+  {id:'acs',       n:'8',  label:'Acessórios'},
+  {id:'pag-acs',   n:'8B', label:'Pag. Acessórios'},
+  {id:'prod-est',  n:'9',  label:'Ped. Produção'},
+  {id:'prod-real', n:'10', label:'Rec. Produção'},
+  {id:'pag-conf',  n:'10B',label:'Pag. Confeção'},
+  {id:'entrega',   n:'11', label:'Entrega'},
+  {id:'transp',    n:'12', label:'Transporte'},
+  {id:'fin',       n:'13', label:'Financeiro'},
+];
+
+// State
+let encomendas = [];
+let activeEnc = null;
+let activeTab = 'enc';
+let BD = { clientes:[], fornecedores:[], tecidos:[], modelos:[], acessorios:[] };
+
+// ── API ──
+const api = {
+  async get(url){ const r=await fetch(url); return r.json(); },
+  async post(url,data){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); return r.json(); },
+  async put(url,data){ const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}); return r.json(); },
+  async del(url){ const r=await fetch(url,{method:'DELETE'}); return r.json(); },
+};
+
+// ── TOAST ──
+function toast(msg, ms=2500){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), ms);
+}
+
+// ── HELPERS ──
+function sv(id,v){ const el=document.getElementById(id); if(el) el.value=v??''; }
+function gv(id){ const el=document.getElementById(id); return el?el.value:''; }
+function getActiveCores(){ return (activeEnc?.dados?.cores||[]).filter(c=>c&&c.trim()); }
+function getTotalPcs(){
+  const qty=activeEnc?.dados?.qty||{};
+  return SIZES.reduce((s,sz)=>s+(qty[sz]?._t||0),0);
+}
+
+// ── SAVE ──
+let saveTimer=null;
+async function autoSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>saveEnc(),600);
+}
+async function saveEnc(){
+  if(!activeEnc) return;
+  collectFields();
+  try{
+    await api.put(`/api/encomendas/${activeEnc.id}`, activeEnc);
+  }catch(e){ console.error('Save error',e); }
+}
+
+function collectFields(){
+  if(!activeEnc) return;
+  const d = activeEnc.dados || {};
+  // Collect all visible inputs by their data-field attribute
+  document.querySelectorAll('[data-field]').forEach(el=>{
+    const key = el.dataset.field;
+    d[key] = el.value;
+  });
+  activeEnc.dados = d;
+  // Top level fields
+  activeEnc.num = d.num || activeEnc.num;
+  activeEnc.data = d.data || activeEnc.data;
+  activeEnc.entrega = d.entrega || activeEnc.entrega;
+  activeEnc.estado = d.estado || activeEnc.estado;
+  activeEnc.cliente = d.cliente || activeEnc.cliente;
+  activeEnc.ref_modelo = d.refModelo || activeEnc.ref_modelo;
+  activeEnc.confecao = d.confecao || activeEnc.confecao;
+}
+
+// ── LOAD ENCOMENDAS ──
+async function loadEncomendas(){
+  encomendas = await api.get('/api/encomendas');
+  renderSidebar();
+}
+
+async function loadBD(){
+  const tipos = ['clientes','fornecedores','tecidos','modelos','acessorios'];
+  for(const t of tipos){
+    BD[t] = await api.get(`/api/bd/${t}`);
+  }
+}
+
+// ── NOVA ENCOMENDA ──
+const App = {
+  async novaEncomenda(){
+    const num = encomendas.length + 1;
+    const result = await api.post('/api/encomendas', {
+      num: String(num),
+      data: '', entrega: '', estado: 'ativa',
+      cliente: '', ref_modelo: '', ref_final: '', confecao: '', notas: '',
+      dados: {
+        num: String(num), cores:['','',''],
+        qty: Object.fromEntries(SIZES.map(sz=>[sz,{0:0,1:0,2:0,_t:0}])),
+        corte: Object.fromEntries(SIZES.map(sz=>[sz,{0:0,_t:0}])),
+        prod: Object.fromEntries(SIZES.map(sz=>[sz,{0:0,_t:0}])),
+        faseEstados: {}
+      }
+    });
+    await loadEncomendas();
+    await openEnc(result.id);
+  },
+
+  async deleteEnc(){
+    if(!activeEnc) return;
+    if(!confirm('Apagar esta encomenda?')) return;
+    await api.del(`/api/encomendas/${activeEnc.id}`);
+    activeEnc = null;
+    await loadEncomendas();
+    document.getElementById('topbar').style.display='none';
+    document.getElementById('content').innerHTML=`<div class="empty-state"><div style="font-size:48px">🧵</div><h2>Seleciona uma encomenda</h2></div>`;
+  }
+};
+
+async function openEnc(id){
+  const enc = await api.get(`/api/encomendas/${id}`);
+  activeEnc = enc;
+  activeTab = 'enc';
+  renderSidebar();
+  renderTopbar();
+  renderTab('enc');
+}
+
+// ── SIDEBAR ──
+function renderSidebar(){
+  const list = document.getElementById('enc-list');
+  list.innerHTML = encomendas.map(e=>`
+    <div class="enc-item ${activeEnc?.id===e.id?'active':''}" onclick="openEnc(${e.id})">
+      <div class="enc-ref">${e.ref_modelo||'Nova Encomenda'}</div>
+      <div class="enc-sub">${e.cliente||'—'} · Enc. Nº ${e.num}</div>
+      <span class="enc-estado estado-${e.estado}">${e.estado}</span>
+    </div>
+  `).join('');
+}
+
+// ── TOPBAR ──
+function renderTopbar(){
+  const tb = document.getElementById('topbar');
+  tb.style.display='flex';
+  const d = activeEnc?.dados || {};
+  const fe = d.faseEstados || {};
+  tb.innerHTML = TABS.map(t=>{
+    const est = fe[t.id];
+    const done = est==='concluido';
+    return `<div class="tab ${activeTab===t.id?'active':''} ${done?'done':''}" onclick="renderTab('${t.id}')">
+      <span class="tab-n">${t.n}</span>${t.label}
+    </div>`;
+  }).join('');
+}
+
+// ── ESTADO FASES ──
+function setFaseEstado(tab, estado){
+  if(!activeEnc) return;
+  if(!activeEnc.dados.faseEstados) activeEnc.dados.faseEstados={};
+  activeEnc.dados.faseEstados[tab]=estado;
+  renderTopbar();
+  autoSave();
+}
+
+function estadoBtns(tab){
+  const fe = activeEnc?.dados?.faseEstados||{};
+  const est = fe[tab]||'pendente';
+  return `<div class="estado-btns">
+    <button class="estado-btn pend ${est==='pendente'?'active':''}" onclick="setFaseEstado('${tab}','pendente')">⏳ Pendente</button>
+    <button class="estado-btn curso ${est==='em-curso'?'active':''}" onclick="setFaseEstado('${tab}','em-curso')">🔄 Em Curso</button>
+    <button class="estado-btn conc ${est==='concluido'?'active':''}" onclick="setFaseEstado('${tab}','concluido')">✅ Concluído</button>
+    <button class="estado-btn prob ${est==='problema'?'active':''}" onclick="setFaseEstado('${tab}','problema')">❌ Problema</button>
+  </div>`;
+}
+
+// ── PAYMENT BUTTONS ──
+function pagBtns(key){
+  const d = activeEnc?.dados||{};
+  const est = d[key+'Estado']||'pendente';
+  return `<div style="display:flex;gap:8px;margin-top:8px">
+    <button class="btn btn-sm ${est==='pendente'?'btn-ink':'btn-out'}" onclick="setPagEstado('${key}','pendente')">⏳ Pendente</button>
+    <button class="btn btn-sm ${est==='pago'?'btn-green':'btn-out'}" onclick="setPagEstado('${key}','pago')">✅ Pago</button>
+  </div>`;
+}
+function setPagEstado(key,est){
+  if(!activeEnc) return;
+  activeEnc.dados[key+'Estado']=est;
+  autoSave();
+  renderTab(activeTab);
+}
+
+// ── UPLOAD ──
+function handleUpload(input, secao){
+  Array.from(input.files).forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=async function(ev){
+      const dataUrl=ev.target.result;
+      const result=await api.post(`/api/uploads/${activeEnc.id}/${secao}`,{
+        nome:file.name, tipo:file.type, dados:dataUrl
+      });
+      renderUploads(secao);
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value='';
+}
+
+async function renderUploads(secao){
+  const files=await api.get(`/api/uploads/${activeEnc.id}/${secao}`);
+  const container=document.getElementById(`ufl-${secao}`);
+  if(!container) return;
+  container.innerHTML=files.map(f=>`
+    <div class="ufi" onclick="openFile('${f.dados}','${f.nome}','${f.tipo}')">
+      <span>${f.tipo==='application/pdf'?'📄':'🖼'}</span>
+      <span style="text-decoration:underline;color:var(--blue)">${f.nome}</span>
+      <button style="background:none;border:none;color:var(--red);cursor:pointer;font-weight:700;margin-left:4px" onclick="event.stopPropagation();delUpload(${f.id},'${secao}')">✕</button>
+    </div>
+  `).join('');
+}
+
+async function delUpload(id, secao){
+  await api.del(`/api/uploads/${id}`);
+  renderUploads(secao);
+}
+
+function openFile(dataUrl, nome, tipo){
+  const w=window.open('','_blank');
+  if(!w) return;
+  if(tipo==='application/pdf'){
+    w.document.write(`<html><body style="margin:0"><embed src="${dataUrl}" type="application/pdf" width="100%" height="100%"></body></html>`);
+  } else {
+    w.document.write(`<html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;height:100vh"><img src="${dataUrl}" style="max-width:100%;max-height:100%"></body></html>`);
+  }
+}
+
+function uploadSection(secao, label){
+  return `
+    <div class="f">
+      <label>${label}</label>
+      <div class="uz">
+        <input type="file" accept=".pdf,image/*" multiple onchange="handleUpload(this,'${secao}')">
+        <div style="font-size:20px;margin-bottom:3px">📎</div>
+        <div style="font-size:11px;color:var(--ink3)"><strong>Clica ou arrasta</strong></div>
+      </div>
+      <div class="ufl" id="ufl-${secao}"></div>
+    </div>`;
+}
+
+// ── QTY TABLE ──
+function buildQtyTable(){
+  const d=activeEnc?.dados||{};
+  const cores=(d.cores||['','']).filter(c=>c&&c.trim());
+  const qty=d.qty||{};
+  const cols = cores.length>0 ? cores : [''];
+  
+  let thead=`<tr><th>Tam.</th>${cols.map(c=>`<th>${c||'Qtd.'}</th>`).join('')}<th>Total</th></tr>`;
+  let tbody=SIZES.map(sz=>{
+    const tds=cols.map((_,ci)=>`<td><input type="number" min="0" class="qty-table" value="${qty[sz]?.[ci]||0}" oninput="setQty('${sz}',${ci},this.value)"></td>`).join('');
+    return `<tr><td><strong>${sz}</strong></td>${tds}<td id="qty-tot-${sz}">${qty[sz]?._t||0}</td></tr>`;
+  }).join('');
+  let tfoot=`<tr><td><strong>TOTAL</strong></td>${cols.map((_,ci)=>`<td id="qty-cor-${ci}">0</td>`).join('')}<td id="qty-grand">0</td></tr>`;
+  
+  return `<table class="dt qty-table"><thead>${thead}</thead><tbody>${tbody}</tbody><tfoot>${tfoot}</tfoot></table>`;
+}
+
+function setQty(sz,ci,val){
+  if(!activeEnc) return;
+  const d=activeEnc.dados;
+  if(!d.qty) d.qty={};
+  if(!d.qty[sz]) d.qty[sz]={};
+  d.qty[sz][ci]=parseInt(val)||0;
+  // Recalc totals
+  SIZES.forEach(s=>{
+    const row=d.qty[s]||{};
+    let t=0; for(let i=0;i<3;i++) t+=row[i]||0;
+    d.qty[s]._t=t;
+    const el=document.getElementById(`qty-tot-${s}`); if(el) el.textContent=t;
+  });
+  const cors=getActiveCores();
+  let grand=0;
+  for(let ci2=0;ci2<Math.max(cors.length,1);ci2++){
+    let ct=0; SIZES.forEach(s=>ct+=(d.qty[s]?.[ci2]||0));
+    const el=document.getElementById(`qty-cor-${ci2}`); if(el) el.textContent=ct;
+    grand+=ct;
+  }
+  const gel=document.getElementById('qty-grand'); if(gel) gel.textContent=grand;
+  autoSave();
+}
+
+function calcTotaisQty(){
+  if(!activeEnc) return;
+  const d=activeEnc.dados;
+  if(!d.qty) return;
+  const cors=getActiveCores();
+  let grand=0;
+  SIZES.forEach(s=>{
+    const row=d.qty[s]||{};
+    let t=0; for(let i=0;i<3;i++) t+=row[i]||0;
+    d.qty[s]._t=t;
+    const el=document.getElementById(`qty-tot-${s}`); if(el) el.textContent=t;
+  });
+  for(let ci=0;ci<Math.max(cors.length,1);ci++){
+    let ct=0; SIZES.forEach(s=>ct+=(d.qty[s]?.[ci]||0));
+    const el=document.getElementById(`qty-cor-${ci}`); if(el) el.textContent=ct;
+    grand+=ct;
+  }
+  const gel=document.getElementById('qty-grand'); if(gel) gel.textContent=grand;
+}
+
+// ── CORTE CALC ──
+function calcCorte(){
+  const d=activeEnc?.dados||{};
+  const tecEnt=parseFloat(gv('c-tec-entregue'))||0;
+  const media=parseFloat(gv('c-media-mod'))||0;
+  if(!media||!tecEnt) return;
+  const pcsEst=Math.floor(tecEnt/media);
+  sv('c-pcs-est', pcsEst+' pcs');
+  // Distribute by size proportionally
+  const qty=d.qty||{};
+  const cors=getActiveCores();
+  const totPcs=getTotalPcs();
+  if(totPcs<=0) return;
+  cors.forEach((_,ci)=>{
+    const totCor=SIZES.reduce((s,sz)=>s+(qty[sz]?.[ci]||0),0);
+    const propCor=totPcs>0?totCor/totPcs:1;
+    const pcsCor=Math.round(pcsEst*propCor);
+    const exact=SIZES.map(sz=>{const q=qty[sz]?.[ci]||0;return totCor>0?pcsCor*(q/totCor):0;});
+    const floored=exact.map(v=>Math.floor(v));
+    let rem=pcsCor-floored.reduce((a,b)=>a+b,0);
+    const fracs=exact.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f);
+    fracs.forEach(({i})=>{if(rem>0){floored[i]++;rem--;}});
+    SIZES.forEach((sz,si)=>{
+      if(!d.corte) d.corte={};
+      if(!d.corte[sz]) d.corte[sz]={};
+      d.corte[sz][ci]=floored[si];
+      const el=document.getElementById(`cr-${sz}-${ci}`); if(el) el.value=floored[si];
+    });
+  });
+  recalcCorte();
+}
+
+function recalcCorte(){
+  const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  let grand=0;
+  const tots=new Array(Math.max(cors.length,1)).fill(0);
+  SIZES.forEach(sz=>{
+    let rowT=0;
+    cors.forEach((_,ci)=>{
+      const v=parseInt(document.getElementById(`cr-${sz}-${ci}`)?.value)||0;
+      if(!d.corte) d.corte={};
+      if(!d.corte[sz]) d.corte[sz]={};
+      d.corte[sz][ci]=v; tots[ci]+=v; rowT+=v;
+    });
+    d.corte[sz]._t=rowT; grand+=rowT;
+    const el=document.getElementById(`cr-tot-${sz}`); if(el) el.textContent=rowT;
+  });
+  tots.forEach((t,ci)=>{const el=document.getElementById(`cr-ctot-${ci}`);if(el) el.textContent=t;});
+  const gel=document.getElementById('cr-grand'); if(gel) gel.textContent=grand;
+  const enc=getTotalPcs();
+  const diff=grand-enc;
+  const del=document.getElementById('cr-diff'); if(del){del.textContent=(diff>=0?'+':'')+diff;del.style.color=diff<0?'var(--red)':diff>0?'var(--green)':'inherit';}
+  autoSave();
+}
+
+// ── FINANCEIRO ──
+function calcFin(){
+  const d=activeEnc?.dados||{};
+  const totPcs=getTotalPcs();
+  if(totPcs<=0) return;
+  const tec=parseFloat(d.ptVal)||0;
+  const mod=parseFloat(d.pmVal)||0;
+  const acs=parseFloat(d.acsCustoTotal)||0;
+  const conf=parseFloat(d.pcVal)||0;
+  const emb=(parseInt(d.packNumCaixas)||0)*(parseFloat(d.packPrecoCaixa)||0);
+  const transp=parseFloat(d.trCusto)||0;
+  const total=tec+mod+acs+conf+emb+transp;
+  const ppVenda=parseFloat(d.pvp)||0;
+  const com=parseFloat(d.comVal)||0;
+  const receita=ppVenda*totPcs;
+  const lucro=receita-total-(com*totPcs);
+  
+  sv('fin-tec', tec>0?`€ ${tec.toFixed(2)}`:'—');
+  sv('fin-mod', mod>0?`€ ${mod.toFixed(2)}`:'—');
+  sv('fin-acs', acs>0?`€ ${acs.toFixed(2)}`:'—');
+  sv('fin-conf', conf>0?`€ ${conf.toFixed(2)}`:'—');
+  sv('fin-emb', emb>0?`€ ${emb.toFixed(2)}`:'—');
+  sv('fin-transp', transp>0?`€ ${transp.toFixed(2)}`:'—');
+  sv('fin-total', `€ ${total.toFixed(2)}`);
+  sv('fin-total-pc', totPcs>0?`€ ${(total/totPcs).toFixed(2)}/pc`:'—');
+  sv('fin-receita', receita>0?`€ ${receita.toFixed(2)}`:'—');
+  sv('fin-lucro', `€ ${lucro.toFixed(2)}`);
+  sv('fin-margem', receita>0?`${((lucro/receita)*100).toFixed(1)}%`:'—');
+}
+
+// ── RENDER TABS ──
+function renderTab(tab){
+  activeTab = tab;
+  renderTopbar();
+  const d = activeEnc?.dados || {};
+  const content = document.getElementById('content');
+  
+  let html = '';
+  
+  if(tab==='enc') html = renderEnc();
+  else if(tab==='tecido') html = renderTecido();
+  else if(tab==='tec-rec') html = renderTecRec();
+  else if(tab==='pag-tec') html = renderPagTec();
+  else if(tab==='mod-pedido') html = renderModPedido();
+  else if(tab==='mod') html = renderMod();
+  else if(tab==='pag-mod') html = renderPagMod();
+  else if(tab==='corte') html = renderCorte();
+  else if(tab==='corte-rec') html = renderCorteRec();
+  else if(tab==='acs') html = renderAcs();
+  else if(tab==='pag-acs') html = renderPagAcs();
+  else if(tab==='prod-est') html = renderProdEst();
+  else if(tab==='prod-real') html = renderProdReal();
+  else if(tab==='pag-conf') html = renderPagConf();
+  else if(tab==='entrega') html = renderEntrega();
+  else if(tab==='transp') html = renderTransp();
+  else if(tab==='fin') html = renderFin();
+  
+  content.innerHTML = html;
+  
+  // Post-render
+  setTimeout(()=>{
+    if(tab==='enc') calcTotaisQty();
+    if(tab==='corte') recalcCorte();
+    if(tab==='fin') calcFin();
+    if(tab==='tec-rec') renderUploads('tec-fat');
+    if(tab==='pag-tec') renderUploads('pag-tec');
+    if(tab==='pag-mod') renderUploads('pag-mod');
+    if(tab==='pag-acs') renderUploads('pag-acs');
+    if(tab==='pag-conf') renderUploads('pag-conf');
+    if(tab==='entrega') renderUploads('entrega');
+    if(tab==='transp') renderUploads('transp');
+  },50);
+}
+
+// ── TAB RENDERERS ──
+function field(id, label, type='text', opts='', tag='', cls='iy'){
+  const d=activeEnc?.dados||{};
+  const val=d[id]??'';
+  return `<div class="f">
+    <label>${label}${tag?`<span class="tag ${tag.cls}">${tag.txt}</span>`:''}</label>
+    <input type="${type}" id="${id}" data-field="${id}" class="${cls}" value="${val}" ${opts} oninput="autoSave()">
+  </div>`;
+}
+
+function computed(id, label){
+  return `<div class="f"><label>${label}<span class="tag tag-auto">Auto</span></label><input type="text" id="${id}" class="computed" readonly></div>`;
+}
+
+function payField(id, label, type='text', opts=''){
+  return field(id, label, type, opts, {cls:'tag-real',txt:'C/IVA'});
+}
+
+function navBtns(prev, next){
+  return `<div class="ab">
+    ${prev?`<button class="btn btn-out" onclick="renderTab('${prev}')">← Anterior</button>`:'<div></div>'}
+    ${next?`<button class="btn btn-ink" onclick="renderTab('${next}')">Próximo →</button>`:'<div></div>'}
+  </div>`;
+}
+
+// ═══════════════ ENCOMENDA ═══════════════
+function renderEnc(){
+  const d=activeEnc?.dados||{};
+  const cors=d.cores||['','',''];
+  const clientes=BD.clientes.map(c=>`<option value="${c.nome}" ${d.cliente===c.nome?'selected':''}>${c.nome}</option>`).join('');
+  const fornecedores=BD.fornecedores.filter(f=>f.tipo==='confecao').map(f=>`<option value="${f.nome}" ${d.confecao===f.nome?'selected':''}>${f.nome}</option>`).join('');
+  const modelos=BD.modelos.map(m=>`<option value="${m.ref}" ${d.refModelo===m.ref?'selected':''}>${m.ref} — ${m.nome}</option>`).join('');
+  
+  return `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><div class="card-icon" style="background:#dbeafe">📋</div>Ficha de Encomenda</div>
+        <button class="btn btn-red btn-sm" onclick="App.deleteEnc()">🗑 Apagar</button>
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          <div class="f"><label>Nº Encomenda</label><input id="num" data-field="num" class="iy" value="${d.num||''}" oninput="autoSave()"></div>
+          <div class="f"><label>Data</label><input type="date" id="data" data-field="data" value="${d.data||''}" oninput="autoSave()"></div>
+          <div class="f"><label>Data de Entrega</label><input type="date" id="entrega" data-field="entrega" value="${d.entrega||''}" oninput="autoSave()"></div>
+        </div>
+        <div class="fg g3">
+          <div class="f"><label>Cliente</label><select id="cliente" data-field="cliente" oninput="autoSave()"><option value="">— Seleciona —</option>${clientes}</select></div>
+          <div class="f"><label>Confeção</label><select id="confecao" data-field="confecao" oninput="autoSave()"><option value="">— Seleciona —</option>${fornecedores}</select></div>
+          <div class="f"><label>Modelo</label><select id="refModelo" data-field="refModelo" oninput="autoSave()"><option value="">— Seleciona —</option>${modelos}</select></div>
+        </div>
+        <div class="fg g3">
+          <div class="f"><label>Referência Final</label><input id="refFinal" data-field="refFinal" class="iy" value="${d.refFinal||''}" placeholder="Ex: Y4860PT6" oninput="autoSave()"></div>
+          <div class="f"><label>Estado</label><select id="estado" data-field="estado" oninput="autoSave()"><option value="ativa" ${d.estado==='ativa'?'selected':''}>Ativa</option><option value="concluida" ${d.estado==='concluida'?'selected':''}>Concluída</option><option value="cancelada" ${d.estado==='cancelada'?'selected':''}>Cancelada</option></select></div>
+          <div class="f"><label>Notas</label><input id="notasG" data-field="notasG" value="${d.notasG||''}" oninput="autoSave()"></div>
+        </div>
+        
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Cores da Encomenda</div><div class="sdiv-l"></div></div>
+        <div class="fg g3">
+          ${[0,1,2].map(i=>`<div class="f"><label>Cor ${i+1}</label><input id="cor${i}" data-field="cor${i}" class="iy" value="${cors[i]||''}" placeholder="Ex: Branco" oninput="updateCores()"></div>`).join('')}
+        </div>
+
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Quantidades por Tamanho</div><div class="sdiv-l"></div></div>
+        ${buildQtyTable()}
+        
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Comercial</div><div class="sdiv-l"></div></div>
+        <div class="fg g4">
+          <div class="f"><label>PVP (€)</label><input type="number" step="0.01" id="pvp" data-field="pvp" class="iy" value="${d.pvp||''}" oninput="autoSave()"></div>
+          <div class="f"><label>Target Custo (€)</label><input type="number" step="0.01" id="target" data-field="target" class="iy" value="${d.target||''}" oninput="autoSave()"></div>
+          <div class="f"><label>Comissão (€/pc)</label><input type="number" step="0.01" id="comVal" data-field="comVal" class="iy" value="${d.comVal||'2.50'}" oninput="autoSave()"></div>
+          <div class="f"><label>Custo Confeção (€/pc)</label><input type="number" step="0.01" id="conf" data-field="conf" class="iy" value="${d.conf||''}" oninput="autoSave()"></div>
+        </div>
+        <div class="fg g3">
+          <div class="f"><label>Média Estimada (m/pc)</label><input type="number" step="0.001" id="mediaEst" data-field="mediaEst" class="iy" value="${d.mediaEst||''}" oninput="autoSave()"></div>
+        </div>
+      </div>
+    </div>
+    ${navBtns(null,'tecido')}`;
+}
+
+function updateCores(){
+  if(!activeEnc) return;
+  const cores=[gv('cor0'),gv('cor1'),gv('cor2')];
+  activeEnc.dados.cores=cores;
+  autoSave();
+}
+
+// ═══════════════ TECIDO ═══════════════
+function renderTecido(){
+  const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  const fornTec=BD.fornecedores.filter(f=>f.tipo==='tecido').map(f=>`<option value="${f.nome}" ${d.tForn===f.nome?'selected':''}>${f.nome}</option>`).join('');
+  const tecidos=BD.tecidos.map(t=>`<option value="${t.ref}" ${d.tecRef===t.ref?'selected':''}>${t.ref} — ${t.forn}</option>`).join('');
+  
+  // Metros a encomendar por cor
+  const metrosCors = cors.map((cor,i)=>{
+    const qty=d.qty||{};
+    const media=parseFloat(d.mediaEst)||0;
+    const totCor=SIZES.reduce((s,sz)=>s+(qty[sz]?.[i]||0),0);
+    const est=(totCor*media).toFixed(1);
+    return `<div class="f">
+      <label>${cor} — Estimativa (m)</label>
+      <input type="text" value="${est} m" class="computed" readonly>
+      <label style="margin-top:8px">${cor} — A Pedir Real (m)<span class="tag tag-real">Real</span></label>
+      <input type="number" step="1" id="tEncReal${i}" data-field="tEncReal${i}" class="iy" value="${d['tEncReal'+i]||''}" placeholder="Ex: 300" oninput="autoSave()">
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#dbeafe">📤</div>Pedido de Tecido</div></div>
+      <div class="card-body">
+        <div class="fg g3">
+          <div class="f"><label>Fornecedor</label><select id="tForn" data-field="tForn" oninput="autoSave()"><option value="">— Seleciona —</option>${fornTec}</select></div>
+          <div class="f"><label>Referência Tecido</label><select id="tecRef" data-field="tecRef" oninput="autoSave()"><option value="">— Seleciona —</option>${tecidos}</select></div>
+          <div class="f"><label>Data do Pedido</label><input type="date" id="tDataEnc" data-field="tDataEnc" value="${d.tDataEnc||''}" oninput="autoSave()"></div>
+        </div>
+        <div class="fg g3">
+          <div class="f"><label>Preço/Metro (€)</label><input type="number" step="0.01" id="tPrecoUnit" data-field="tPrecoUnit" class="iy" value="${d.tPrecoUnit||''}" oninput="autoSave()"></div>
+          <div class="f"><label>Largura (m)</label><input type="number" step="0.01" id="tecLarg" data-field="tecLarg" value="${d.tecLarg||''}" oninput="autoSave()"></div>
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Metros a Encomendar por Cor</div><div class="sdiv-l"></div></div>
+        <div class="fg g3">${metrosCors||'<p style="color:var(--ink3)">Define as cores na ficha de encomenda primeiro</p>'}</div>
+      </div>
+    </div>
+    ${navBtns('enc','tec-rec')}`;
+}
+
+// ═══════════════ RECEÇÃO TECIDO ═══════════════
+function renderTecRec(){
+  const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  const metrosCors=cors.map((cor,i)=>`
+    <div class="f">
+      <label>${cor} — Metros Recebidos (m)<span class="tag tag-real">Real</span></label>
+      <input type="number" step="0.1" id="tRecMetros${i}" data-field="tRecMetros${i}" class="iy" value="${d['tRecMetros'+i]||''}" oninput="autoSave()">
+    </div>`).join('');
+
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#d1fae5">📥</div>Receção de Tecido</div>
+        ${estadoBtns('tec-rec')}
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${field('tDataRec','Data de Receção','date')}
+          ${field('tLargReal','Largura Real (m)','number','step="0.01"')}
+          ${field('tPrecoReal','Preço Real/Metro (€)','number','step="0.01"')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Metros Recebidos por Cor</div><div class="sdiv-l"></div></div>
+        <div class="fg g3">${metrosCors||'<p style="color:var(--ink3)">Define as cores na ficha de encomenda primeiro</p>'}</div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('tec-fat','Fatura do Tecido')}</div>
+      </div>
+    </div>
+    ${navBtns('tecido','pag-tec')}`;
+}
+
+// ═══════════════ PAGAMENTO TECIDO ═══════════════
+function renderPagTec(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef3c7">💳</div>Pagamento do Tecido</div>
+        ${estadoBtns('pag-tec')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('ptDfat','Data da Fatura','date')}
+          ${field('ptNfat','Nº Fatura')}
+          ${payField('ptVal','Valor Total (€ C/IVA)','number','step="0.01"')}
+          ${field('ptDpag','Data de Pagamento','date')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Estado do Pagamento</div><div class="sdiv-l"></div></div>
+        ${pagBtns('pt')}
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('pag-tec','Comprovativo de Pagamento')}</div>
+      </div>
+    </div>
+    ${navBtns('tec-rec','mod-pedido')}`;
+}
+
+// ═══════════════ PEDIDO MODULAÇÃO ═══════════════
+function renderModPedido(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#ede9fe">📐</div>Pedido de Modulação</div>
+        ${estadoBtns('mod-pedido')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('mpData','Data do Pedido','date')}
+          ${field('mpResp','Responsável / Modelista')}
+          ${field('mpPrazo','Prazo Pretendido','date')}
+          ${field('mpNotas','Notas')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Plano de Modulação</div><div class="sdiv-l"></div></div>
+        ${buildModPedidoTable()}
+      </div>
+    </div>
+    ${navBtns('pag-tec','mod')}`;
+}
+
+function buildModPedidoTable(){
+  const d=activeEnc?.dados||{};
+  const qty=d.qty||{};
+  const rows=SIZES.filter(sz=>(qty[sz]?._t||0)>0).map(sz=>`
+    <tr>
+      <td><strong>${sz}</strong></td>
+      <td style="text-align:center;font-weight:700">${qty[sz]?._t||0}</td>
+      <td style="background:#fffbeb;font-style:italic;color:var(--ink3)">— a preencher —</td>
+    </tr>`).join('');
+  return `<table class="dt"><thead><tr><th>Tamanho</th><th>Qtd.</th><th>Média (m/pc)</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ═══════════════ RECEÇÃO MODULAÇÃO ═══════════════
+function renderMod(){
+  const d=activeEnc?.dados||{};
+  const mm=d.modMedias||{};
+  const rows=SIZES.map((sz,i)=>`
+    <tr style="${i%2===0?'background:var(--paper2)':''}">
+      <td><strong>${sz}</strong></td>
+      <td><input type="number" step="0.001" id="mm-${sz}" value="${mm[sz]||''}" placeholder="—"
+        style="width:100px;padding:5px 8px;border:1.5px solid var(--goldm);border-radius:var(--rsm);background:var(--goldl)"
+        oninput="setMedia('${sz}',this.value)"></td>
+      <td id="mm-tec-${sz}" style="font-family:'Courier New',monospace">—</td>
+    </tr>`).join('');
+  
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#ede9fe">📐</div>Receção de Modulação</div>
+        ${estadoBtns('mod')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('mData','Data de Receção','date')}
+          ${field('mResp','Modelista')}
+          ${field('mLarg','Largura (m)','number','step="0.01"')}
+          ${field('mCusto','Custo (€)','number','step="0.01"')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Médias por Tamanho</div><div class="sdiv-l"></div></div>
+        <table class="dt">
+          <thead><tr><th>Tamanho</th><th>Média (m/pc)</th><th>Tecido Necessário</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td><strong>MÉDIA GLOBAL</strong></td><td id="mm-avg" style="font-weight:700">—</td><td id="mm-tottec" style="font-weight:700">—</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+    ${navBtns('mod-pedido','pag-mod')}`;
+}
+
+function setMedia(sz, val){
+  if(!activeEnc) return;
+  if(!activeEnc.dados.modMedias) activeEnc.dados.modMedias={};
+  activeEnc.dados.modMedias[sz]=parseFloat(val)||'';
+  recalcMod();
+  autoSave();
+}
+
+function recalcMod(){
+  const d=activeEnc?.dados||{};
+  const mm=d.modMedias||{};
+  const qty=d.qty||{};
+  let tot=0,cnt=0,totTec=0;
+  SIZES.forEach(sz=>{
+    const v=parseFloat(mm[sz])||0;
+    const q=qty[sz]?._t||0;
+    if(v){
+      const tec=v*q;
+      const el=document.getElementById(`mm-tec-${sz}`);
+      if(el) el.textContent=tec.toFixed(1)+' m';
+      tot+=v; cnt++; totTec+=tec;
+    }
+  });
+  const avg=cnt>0?tot/cnt:0;
+  const avgEl=document.getElementById('mm-avg');
+  if(avgEl) avgEl.textContent=avg>0?avg.toFixed(3)+' m/pc':'—';
+  const totEl=document.getElementById('mm-tottec');
+  if(totEl) totEl.textContent=totTec>0?totTec.toFixed(1)+' m':'—';
+}
+
+// ═══════════════ PAGAMENTO MODULAÇÃO ═══════════════
+function renderPagMod(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef3c7">💳</div>Pagamento da Modulação</div>
+        ${estadoBtns('pag-mod')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('pmDfat','Data da Fatura','date')}
+          ${field('pmNfat','Nº Fatura')}
+          ${payField('pmVal','Valor Total (€ C/IVA)','number','step="0.01"')}
+          ${field('pmDpag','Data de Pagamento','date')}
+        </div>
+        ${pagBtns('pm')}
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('pag-mod','Comprovativo')}</div>
+      </div>
+    </div>
+    ${navBtns('mod','corte')}`;
+}
+
+// ═══════════════ CORTE ═══════════════
+function renderCorte(){
+  const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  const corte=d.corte||{};
+  const totPcs=getTotalPcs();
+
+  const headers=cors.map(c=>`<th>${c}</th>`).join('');
+  const totHeaders=cors.map((_,i)=>`<td id="cr-ctot-${i}" style="font-weight:700">0</td>`).join('');
+  const rows=SIZES.map(sz=>{
+    const tds=cors.map((_,ci)=>`<td><input type="number" min="0" id="cr-${sz}-${ci}" value="${corte[sz]?.[ci]||0}" style="width:60px;padding:5px;text-align:center;border:1.5px solid var(--border);border-radius:var(--rsm);font-family:'Courier New',monospace;font-weight:700" oninput="recalcCorte()"></td>`).join('');
+    return `<tr><td><strong>${sz}</strong></td>${tds}<td id="cr-tot-${sz}" style="font-weight:700">${corte[sz]?._t||0}</td></tr>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fce7f3">✂️</div>Pedido de Corte</div>
+        ${estadoBtns('corte')}
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${field('cDataPedido','Data do Pedido','date')}
+          ${field('cTecEntregue','Tecido Entregue (m)','number','step="0.1"')}
+          ${field('cMediaMod','Média Modulação (m/pc)','number','step="0.001" oninput="calcCorte()"')}
+        </div>
+        ${computed('c-pcs-est','Peças Estimadas')}
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Distribuição por Tamanho e Cor</div><div class="sdiv-l"></div></div>
+        <div style="overflow-x:auto">
+          <table class="dt">
+            <thead><tr><th>Tam.</th>${headers}<th>Total</th></tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr class="tr"><td>TOTAL</td>${totHeaders}<td id="cr-grand">0</td></tr>
+            <tr><td colspan="${cors.length+2}"><span style="font-size:11px;color:var(--ink3)">Enc: ${totPcs} pcs — Dif: <span id="cr-diff" style="font-weight:700">—</span></span></td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+    ${navBtns('pag-mod','corte-rec')}`;
+}
+
+// ═══════════════ RECEÇÃO CORTE ═══════════════
+function renderCorteRec(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fce7f3">✂️</div>Receção de Corte</div>
+        ${estadoBtns('corte-rec')}
+      </div>
+      <div class="card-body">
+        ${field('crDataRec','Data de Receção','date')}
+      </div>
+    </div>
+    ${navBtns('corte','acs')}`;
+}
+
+// ═══════════════ ACESSÓRIOS ═══════════════
+function renderAcs(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef3c7">🪡</div>Acessórios</div>
+        ${estadoBtns('acs')}
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${field('aNfat','Nº Fatura')}
+          ${field('aDataPag','Data de Pagamento','date')}
+          ${field('acsCustoTotal','Custo Total (€)','number','step="0.01"')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('acs','Fatura de Acessórios')}</div>
+      </div>
+    </div>
+    ${navBtns('corte-rec','pag-acs')}`;
+}
+
+// ═══════════════ PAGAMENTO ACESSÓRIOS ═══════════════
+function renderPagAcs(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef3c7">💳</div>Pagamento de Acessórios</div>
+        ${estadoBtns('pag-acs')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('paDfat','Data da Fatura','date')}
+          ${field('paNfat','Nº Fatura')}
+          ${payField('paVal','Valor Total (€ C/IVA)','number','step="0.01"')}
+          ${field('paDpag','Data de Pagamento','date')}
+        </div>
+        ${pagBtns('pa')}
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('pag-acs','Comprovativo')}</div>
+      </div>
+    </div>
+    ${navBtns('acs','prod-est')}`;
+}
+
+// ═══════════════ PEDIDO PRODUÇÃO ═══════════════
+function renderProdEst(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#ecfdf5">🏭</div>Pedido de Produção</div>
+        ${estadoBtns('prod-est')}
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${field('pDataPedido','Data do Pedido','date')}
+          ${field('pPrazo','Prazo Pretendido','date')}
+          ${field('pNotas','Notas')}
+        </div>
+      </div>
+    </div>
+    ${navBtns('pag-acs','prod-real')}`;
+}
+
+// ═══════════════ RECEÇÃO PRODUÇÃO ═══════════════
+function renderProdReal(){
+  const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  const prod=d.prod||{};
+  const defs=d.defeitos||{};
+  const headers=cors.map(c=>`<th>${c}</th>`).join('');
+  const rows=SIZES.map(sz=>{
+    const tds=cors.map((_,ci)=>`<td><input type="number" min="0" id="pr-${sz}-${ci}" value="${prod[sz]?.[ci]||0}" style="width:60px;padding:5px;text-align:center;border:1.5px solid var(--border);border-radius:var(--rsm);font-family:'Courier New',monospace" oninput="recalcProd()"></td>`).join('');
+    const defTds=cors.map((_,ci)=>`<td><input type="number" min="0" id="def-${sz}-${ci}" value="${defs[sz]?.[ci]||0}" style="width:50px;padding:5px;text-align:center;border:1.5px solid var(--border);border-radius:var(--rsm);font-family:'Courier New',monospace;background:#fef2f2" oninput="recalcProd()"></td>`).join('');
+    return `<tr><td><strong>${sz}</strong></td>${tds}<td id="pr-tot-${sz}">${prod[sz]?._t||0}</td>${defTds}</tr>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#ecfdf5">🏭</div>Receção de Produção</div>
+        ${estadoBtns('prod-real')}
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${field('pData','Data de Receção','date')}
+          ${field('pMediaReal','Média Real (m/pc)','number','step="0.001"')}
+        </div>
+        <div style="overflow-x:auto">
+          <table class="dt">
+            <thead><tr><th>Tam.</th>${headers}<th>Total</th>${cors.map(c=>`<th>Def. ${c}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr><td>TOTAL</td>${cors.map((_,i)=>`<td id="pr-ctot-${i}">0</td>`).join('')}<td id="pr-grand">0</td>${cors.map((_,i)=>`<td id="def-ctot-${i}" style="color:var(--red)">0</td>`).join('')}</tr></tfoot>
+          </table>
+        </div>
+        <div id="prod-resumo" style="margin-top:12px;padding:12px;background:var(--paper2);border-radius:var(--rsm);font-size:12px"></div>
+      </div>
+    </div>
+    ${navBtns('prod-est','pag-conf')}`;
+}
+
+function recalcProd(){
+  const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  if(!d.prod) d.prod={};
+  if(!d.defeitos) d.defeitos={};
+  let grand=0,grandDef=0;
+  const tots=new Array(cors.length).fill(0);
+  const totsDef=new Array(cors.length).fill(0);
+  SIZES.forEach(sz=>{
+    let rowT=0;
+    cors.forEach((_,ci)=>{
+      const v=parseInt(document.getElementById(`pr-${sz}-${ci}`)?.value)||0;
+      const dv=parseInt(document.getElementById(`def-${sz}-${ci}`)?.value)||0;
+      if(!d.prod[sz]) d.prod[sz]={};
+      if(!d.defeitos[sz]) d.defeitos[sz]={};
+      d.prod[sz][ci]=v; d.defeitos[sz][ci]=dv;
+      tots[ci]+=v; totsDef[ci]+=dv; rowT+=v;
+    });
+    d.prod[sz]._t=rowT; grand+=rowT;
+    const el=document.getElementById(`pr-tot-${sz}`); if(el) el.textContent=rowT;
+  });
+  tots.forEach((t,i)=>{const el=document.getElementById(`pr-ctot-${i}`);if(el) el.textContent=t;});
+  totsDef.forEach((t,i)=>{grandDef+=t;const el=document.getElementById(`def-ctot-${i}`);if(el) el.textContent=t;});
+  const gel=document.getElementById('pr-grand'); if(gel) gel.textContent=grand;
+  const apr=grand-grandDef;
+  const res=document.getElementById('prod-resumo');
+  if(res) res.innerHTML=`<strong>Produzidas:</strong> ${grand} pcs &nbsp;|&nbsp; <strong>Defeitos:</strong> <span style="color:var(--red)">${grandDef} pcs</span> &nbsp;|&nbsp; <strong>Aprovadas:</strong> <span style="color:var(--green)">${apr} pcs</span>`;
+  autoSave();
+}
+
+// ═══════════════ PAGAMENTO CONFEÇÃO ═══════════════
+function renderPagConf(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef3c7">💳</div>Pagamento da Confeção</div>
+        ${estadoBtns('pag-conf')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('pcDfat','Data da Fatura','date')}
+          ${field('pcNfat','Nº Fatura')}
+          ${payField('pcVal','Valor Total (€ C/IVA)','number','step="0.01"')}
+          ${field('pcDpag','Data de Pagamento','date')}
+        </div>
+        ${pagBtns('pc')}
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('pag-conf','Fatura da Confeção')}</div>
+      </div>
+    </div>
+    ${navBtns('prod-real','entrega')}`;
+}
+
+// ═══════════════ ENTREGA ═══════════════
+function renderEntrega(){
+  const d=activeEnc?.dados||{};
+  const nCx=parseInt(d.packNumCaixas)||0;
+  const pCx=parseFloat(d.packPrecoCaixa)||0;
+  const custEmb=nCx*pCx;
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#dbeafe">🚚</div>Entrega</div>
+        ${estadoBtns('entrega')}
+      </div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${field('enData','Data de Entrega','date')}
+          ${field('enGuia','Nº Guia / Referência')}
+          ${field('enTransp','Transportadora')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Embalagem</div><div class="sdiv-l"></div></div>
+        <div class="fg g3">
+          <div class="f"><label>Nº de Caixas</label><input type="number" min="0" id="packNumCaixas" data-field="packNumCaixas" class="iy" value="${d.packNumCaixas||''}" oninput="autoSave();calcEmb()"></div>
+          <div class="f"><label>Preço por Caixa (€)</label><input type="number" step="0.01" id="packPrecoCaixa" data-field="packPrecoCaixa" class="iy" value="${d.packPrecoCaixa||''}" oninput="autoSave();calcEmb()"></div>
+          <div class="f"><label>Custo Total Embalagem (€)<span class="tag tag-auto">Auto</span></label><input type="text" id="packCustoTotal" class="computed" readonly value="${custEmb>0?custEmb.toFixed(2)+' €':'—'}"></div>
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('entrega','Packing List / Documentos')}</div>
+      </div>
+    </div>
+    ${navBtns('pag-conf','transp')}`;
+}
+
+function calcEmb(){
+  const n=parseInt(gv('packNumCaixas'))||0;
+  const p=parseFloat(gv('packPrecoCaixa'))||0;
+  const t=n*p;
+  sv('packCustoTotal', t>0?t.toFixed(2)+' €':'—');
+  if(activeEnc) activeEnc.dados.packCustoTotal=t>0?String(t.toFixed(2)):'';
+}
+
+// ═══════════════ TRANSPORTE ═══════════════
+function renderTransp(){
+  const d=activeEnc?.dados||{};
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#dbeafe">🚛</div>Transporte</div>
+        ${estadoBtns('transp')}
+      </div>
+      <div class="card-body">
+        <div class="fg g4">
+          ${field('trEmpresa','Empresa de Transporte')}
+          ${field('trData','Data','date')}
+          ${field('trGuia','Nº Guia')}
+          ${field('trCusto','Custo (€)','number','step="0.01"')}
+        </div>
+        ${field('trNotas','Notas')}
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        <div class="fg g2">${uploadSection('transp','Guia de Transporte')}</div>
+      </div>
+    </div>
+    ${navBtns('entrega','fin')}`;
+}
+
+// ═══════════════ FINANCEIRO ═══════════════
+function renderFin(){
+  const d=activeEnc?.dados||{};
+  const totPcs=getTotalPcs();
+  return `
+    <div class="card">
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#d1fae5">💰</div>Resumo Financeiro</div></div>
+      <div class="card-body">
+        <div class="fg g3">
+          ${computed('fin-tec','Tecido')}
+          ${computed('fin-mod','Modulação')}
+          ${computed('fin-acs','Acessórios')}
+          ${computed('fin-conf','Confeção')}
+          ${computed('fin-emb','Embalagem')}
+          ${computed('fin-transp','Transporte')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Totais</div><div class="sdiv-l"></div></div>
+        <div class="fg g3">
+          ${computed('fin-total','Custo Total (€)')}
+          ${computed('fin-total-pc','Custo por Peça')}
+          ${computed('fin-receita','Receita Total (€)')}
+          ${computed('fin-lucro','Lucro (€)')}
+          ${computed('fin-margem','Margem (%)')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Pagamentos a Fornecedores</div><div class="sdiv-l"></div></div>
+        ${buildPagResumo()}
+      </div>
+    </div>
+    ${navBtns('transp',null)}`;
+}
+
+function buildPagResumo(){
+  const d=activeEnc?.dados||{};
+  const items=[
+    {nome:'Tecido', forn:d.tForn||'—', nfat:d.ptNfat, val:d.ptVal, dpag:d.ptDpag, est:d.ptEstado},
+    {nome:'Modulação', forn:d.mResp||'—', nfat:d.pmNfat, val:d.pmVal, dpag:d.pmDpag, est:d.pmEstado},
+    {nome:'Acessórios', forn:'—', nfat:d.paNfat, val:d.paVal, dpag:d.paDpag, est:d.paEstado},
+    {nome:'Confeção', forn:d.confecao||'—', nfat:d.pcNfat, val:d.pcVal, dpag:d.pcDpag, est:d.pcEstado},
+  ].filter(i=>i.val||i.nfat);
+  if(!items.length) return '<p style="color:var(--ink3);font-size:12px">Sem pagamentos registados</p>';
+  return `<table class="dt"><thead><tr><th>Fase</th><th>Fornecedor</th><th>Nº Fatura</th><th>Valor</th><th>Data Pag.</th><th>Estado</th></tr></thead>
+    <tbody>${items.map(i=>`<tr>
+      <td>${i.nome}</td><td>${i.forn}</td><td>${i.nfat||'—'}</td>
+      <td style="font-weight:700">${i.val?'€ '+parseFloat(i.val).toFixed(2):'—'}</td>
+      <td>${i.dpag||'—'}</td>
+      <td><span class="badge ${i.est==='pago'?'badge-conc':'badge-pend'}">${i.est==='pago'?'✅ Pago':'⏳ Pendente'}</span></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// ── INIT ──
+async function init(){
+  await loadBD();
+  await loadEncomendas();
+}
+
+init();
+</script>
+</body>
+</html>
