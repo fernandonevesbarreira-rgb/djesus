@@ -215,7 +215,13 @@ function getTotalPcs(){
 
 // ── SAVE ──
 let saveTimer=null;
-async function autoSave(){
+async function saveNow(){
+  clearTimeout(saveTimer);
+  await saveEnc();
+  showToast('💾 Guardado!');
+}
+
+function autoSave(){
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>saveEnc(),600);
 }
@@ -331,7 +337,10 @@ function renderTopbar(){
     return `<div class="tab ${activeTab===t.id?'active':''} ${done?'done':''}" onclick="renderTab('${t.id}')">
       <span class="tab-n">${t.n}</span>${t.label}
     </div>`;
-  }).join('');
+  }).join('') + `<div style="margin-left:auto;padding:0 12px;display:flex;align-items:center;gap:8px;flex-shrink:0">
+    <button class="btn btn-green btn-sm" onclick="saveNow()" id="btn-save-top">💾 Guardar</button>
+    <button class="btn btn-red btn-sm" onclick="App.deleteEnc()">🗑</button>
+  </div>`;
 }
 
 // ── ESTADO FASES ──
@@ -609,6 +618,13 @@ function renderTab(tab){
     if(tab==='corte') recalcCorte();
     if(tab==='fin') calcFin();
     if(tab==='tec-rec') renderUploads('tec-fat');
+    if(tab==='acs'){
+      const faturas=activeEnc?.dados?.acsFaturas||[];
+      acsFatCount=0;
+      faturas.forEach(f=>addAcsFatura(f));
+      renderUploads('acs');
+    }
+    if(tab==='prod-est') renderUploads('prod-est');
     if(tab==='pag-tec') renderUploads('pag-tec');
     if(tab==='pag-mod') renderUploads('pag-mod');
     if(tab==='pag-acs') renderUploads('pag-acs');
@@ -749,11 +765,19 @@ function renderTecido(){
 function renderTecRec(){
   const d=activeEnc?.dados||{};
   const cors=getActiveCores();
-  const metrosCors=cors.map((cor,i)=>`
-    <div class="f">
-      <label>${cor} — Metros Recebidos (m)<span class="tag tag-real">Real</span></label>
-      <input type="number" step="0.1" id="tRecMetros${i}" data-field="tRecMetros${i}" class="iy" value="${d['tRecMetros'+i]||''}" oninput="autoSave()">
-    </div>`).join('');
+  const metrosCors=cors.map((cor,i)=>{
+    const enc=parseFloat(d['tEncReal'+i])||0;
+    const rec=d['tRecMetros'+i]||'';
+    const diff=rec&&enc?(parseFloat(rec)-enc).toFixed(1):null;
+    const diffColor=diff<0?'var(--red)':diff>0?'var(--green)':'var(--ink3)';
+    return `<div class="f">
+      <label>${cor} — Encomendado (m)</label>
+      <input type="text" value="${enc>0?enc+' m':'—'}" class="computed" readonly>
+      <label style="margin-top:8px">${cor} — Recebido (m)<span class="tag tag-real">Real</span></label>
+      <input type="number" step="0.1" id="tRecMetros${i}" data-field="tRecMetros${i}" class="iy" value="${rec}" oninput="autoSave()" placeholder="0.0">
+      ${diff!==null?`<div style="font-size:11px;font-weight:700;color:${diffColor};margin-top:3px">Dif: ${diff>0?'+':''}${diff} m</div>`:''}
+    </div>`;
+  }).join('');
 
   return `
     <div class="card">
@@ -763,7 +787,6 @@ function renderTecRec(){
       <div class="card-body">
         <div class="fg g3">
           ${field('tDataRec','Data de Receção','date')}
-          ${field('tLargReal','Largura Real (m)','number','step="0.01"')}
           ${field('tPrecoReal','Preço Real/Metro (€)','number','step="0.01"')}
         </div>
         <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Metros Recebidos por Cor</div><div class="sdiv-l"></div></div>
@@ -824,13 +847,47 @@ function renderModPedido(){
 function buildModPedidoTable(){
   const d=activeEnc?.dados||{};
   const qty=d.qty||{};
-  const rows=SIZES.filter(sz=>(qty[sz]?._t||0)>0).map(sz=>`
-    <tr>
-      <td><strong>${sz}</strong></td>
-      <td style="text-align:center;font-weight:700">${qty[sz]?._t||0}</td>
-      <td style="background:#fffbeb;font-style:italic;color:var(--ink3)">— a preencher —</td>
-    </tr>`).join('');
-  return `<table class="dt"><thead><tr><th>Tamanho</th><th>Qtd.</th><th>Média (m/pc)</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const cors=getActiveCores();
+  const modelo=BD.modelos.find(m=>m.ref===d.refModelo)||{};
+  const unico=cors.length<=1;
+  
+  const plano=(titulo,qtdFn)=>{
+    const rows=SIZES.filter(sz=>qtdFn(sz)>0).map(sz=>`
+      <tr>
+        <td><strong>${sz}</strong></td>
+        <td style="text-align:center;font-weight:700">${qtdFn(sz)}</td>
+        <td style="background:#fffbeb;font-style:italic;color:var(--ink3);font-size:11px">— a preencher —</td>
+      </tr>`).join('');
+    return `<div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink3);margin-bottom:6px">${titulo}</div>
+      <table class="dt"><thead><tr><th>Tamanho</th><th>Qtd.</th><th>Média (m/pc)</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  };
+  
+  const planos=unico
+    ? plano('Plano Único',sz=>qty[sz]?._t||0)
+    : cors.map((cor,i)=>plano(`Plano — ${cor}`,sz=>qty[sz]?.[i]||0)).join('');
+  
+  // Info do modelo
+  const info=(l,v)=>v?`<div style="display:flex;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid var(--paper3)"><span style="color:var(--ink3);min-width:130px;font-weight:600">${l}</span><span style="font-weight:700">${v}</span></div>`:'';
+  const larg=d.tLargReal||d.mLarg||'—';
+  
+  return `
+    <div style="background:var(--paper2);border-radius:var(--rsm);padding:14px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-bottom:12px">
+        ${info('Referência',d.refFinal||d.refModelo)}
+        ${info('Cliente',d.cliente)}
+        ${info('Modelo',modelo.nome)}
+        ${info('Molde',modelo.molde)}
+        ${info('Colarinho',modelo.col)}
+        ${info('Frente',modelo.frente)}
+        ${info('Bolsos',modelo.bolsos)}
+        ${info('Largura Tecido',larg+' cm')}
+        ${info('Composição',d.tecComp||'')}
+        ${info('Tipo Tecido',d.tecTipo||'')}
+      </div>
+      ${planos}
+    </div>`;
 }
 
 // ═══════════════ RECEÇÃO MODULAÇÃO ═══════════════
@@ -855,7 +912,7 @@ function renderMod(){
         <div class="fg g4">
           ${field('mData','Data de Receção','date')}
           ${field('mResp','Modelista')}
-          ${field('mLarg','Largura (m)','number','step="0.01"')}
+
           ${field('mCusto','Custo (€)','number','step="0.01"')}
         </div>
         <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Médias por Tamanho</div><div class="sdiv-l"></div></div>
@@ -897,6 +954,8 @@ function recalcMod(){
   if(avgEl) avgEl.textContent=avg>0?avg.toFixed(3)+' m/pc':'—';
   const totEl=document.getElementById('mm-tottec');
   if(totEl) totEl.textContent=totTec>0?totTec.toFixed(1)+' m':'—';
+  // Save global avg to dados
+  if(activeEnc&&avg>0) activeEnc.dados.modAvgGlobal=avg.toFixed(3);
 }
 
 // ═══════════════ PAGAMENTO MODULAÇÃO ═══════════════
@@ -945,7 +1004,10 @@ function renderCorte(){
         <div class="fg g3">
           ${field('cDataPedido','Data do Pedido','date')}
           ${field('cTecEntregue','Tecido Entregue (m)','number','step="0.1"')}
-          ${field('cMediaMod','Média Modulação (m/pc)','number','step="0.001" oninput="calcCorte()"')}
+          <div class="f"><label>Média Modulação (m/pc)<span class="tag tag-real">Manual</span></label>
+            <input type="number" step="0.001" id="cMediaMod" data-field="cMediaMod" class="iy" 
+              value="${d.cMediaMod||d.modAvgGlobal||''}" placeholder="Preenche ou vem da modulação" oninput="autoSave();calcCorte()">
+          </div>
         </div>
         ${computed('c-pcs-est','Peças Estimadas')}
         <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Distribuição por Tamanho e Cor</div><div class="sdiv-l"></div></div>
@@ -966,37 +1028,141 @@ function renderCorte(){
 // ═══════════════ RECEÇÃO CORTE ═══════════════
 function renderCorteRec(){
   const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  const corte=d.corte||{};
+  const corteRec=d.corteRec||{};
+  const headers=cors.map(c=>`<th>${c}</th>`).join('');
+  const rows=SIZES.map(sz=>{
+    const tds=cors.map((_,ci)=>{
+      const pedido=corte[sz]?.[ci]||0;
+      const rec=corteRec[sz]?.[ci]||'';
+      return `<td>
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:2px">Pedido: ${pedido}</div>
+        <input type="number" min="0" id="cr-rec-${sz}-${ci}" value="${rec}"
+          style="width:65px;padding:4px;text-align:center;border:1.5px solid var(--border);border-radius:4px;font-family:'Courier New',monospace;font-weight:700"
+          oninput="setCorteRec('${sz}',${ci},this.value)">
+      </td>`;
+    }).join('');
+    return `<tr><td><strong>${sz}</strong></td>${tds}<td id="crec-tot-${sz}" style="font-weight:700;font-family:'Courier New',monospace">0</td></tr>`;
+  }).join('');
+
   return `
     <div class="card">
       <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fce7f3">✂️</div>Receção de Corte</div>
         ${estadoBtns('corte-rec')}
       </div>
       <div class="card-body">
-        ${field('crDataRec','Data de Receção','date')}
+        <div class="fg g2">
+          ${field('crDataRec','Data de Receção','date')}
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Peças Recebidas do Corte</div><div class="sdiv-l"></div></div>
+        <div style="overflow-x:auto">
+          <table class="dt">
+            <thead><tr><th>Tam.</th>${headers}<th>Total</th></tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr class="tr"><td>TOTAL</td>${cors.map((_,i)=>`<td id="crec-ctot-${i}" style="font-weight:700">0</td>`).join('')}<td id="crec-grand" style="font-weight:700">0</td></tr></tfoot>
+          </table>
+        </div>
       </div>
     </div>
     ${navBtns('corte','acs')}`;
 }
 
+function setCorteRec(sz,ci,val){
+  if(!activeEnc) return;
+  if(!activeEnc.dados.corteRec) activeEnc.dados.corteRec={};
+  if(!activeEnc.dados.corteRec[sz]) activeEnc.dados.corteRec[sz]={};
+  activeEnc.dados.corteRec[sz][ci]=parseInt(val)||0;
+  // Recalc totals
+  const cors=getActiveCores();
+  let grand=0;
+  const totC=cors.map(()=>0);
+  SIZES.forEach(s=>{
+    let rowT=0;
+    cors.forEach((_,i)=>{
+      const v=parseInt(document.getElementById(`cr-rec-${s}-${i}`)?.value)||0;
+      rowT+=v; totC[i]+=v;
+    });
+    const el=document.getElementById(`crec-tot-${s}`); if(el) el.textContent=rowT;
+    grand+=rowT;
+  });
+  cors.forEach((_,i)=>{ const el=document.getElementById(`crec-ctot-${i}`); if(el) el.textContent=totC[i]; });
+  const g=document.getElementById('crec-grand'); if(g) g.textContent=grand;
+  autoSave();
+}
+
 // ═══════════════ ACESSÓRIOS ═══════════════
 function renderAcs(){
   const d=activeEnc?.dados||{};
+  const modelo=BD.modelos.find(m=>m.ref===d.refModelo)||{};
+  const acs=modelo.acsConsumo||[];
+  const totPcs=getTotalPcs();
+  const acsRows=acs.length>0?acs.map(a=>{
+    const total=totPcs*a.consumo;
+    return `<tr>
+      <td>${a.nome}</td>
+      <td style="text-align:center;font-family:'Courier New',monospace">${a.consumo}</td>
+      <td style="font-weight:700;font-family:'Courier New',monospace">${total}</td>
+      <td style="color:var(--ink3);font-size:11px">${a.notas||'—'}</td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="4" style="color:var(--ink3);font-style:italic">Sem acessórios definidos no modelo</td></tr>`;
+
   return `
     <div class="card">
       <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef3c7">🪡</div>Acessórios</div>
         ${estadoBtns('acs')}
       </div>
       <div class="card-body">
-        <div class="fg g3">
-          ${field('aNfat','Nº Fatura')}
-          ${field('aDataPag','Data de Pagamento','date')}
-          ${field('acsCustoTotal','Custo Total (€)','number','step="0.01"')}
-        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Lista de Acessórios do Modelo</div><div class="sdiv-l"></div></div>
+        <table class="dt">
+          <thead><tr><th>Acessório</th><th>Consumo/pc</th><th>Total (${totPcs} pcs)</th><th>Notas</th></tr></thead>
+          <tbody>${acsRows}</tbody>
+        </table>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Faturas de Acessórios</div><div class="sdiv-l"></div></div>
+        <div id="acs-faturas-list"></div>
+        <button class="btn btn-out btn-sm" onclick="addAcsFatura()" style="margin-top:8px">+ Adicionar Fatura</button>
         <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
-        <div class="fg g2">${uploadSection('acs','Fatura de Acessórios')}</div>
+        <div class="fg g2">${uploadSection('acs','Faturas de Acessórios')}</div>
       </div>
     </div>
     ${navBtns('corte-rec','pag-acs')}`;
+}
+
+let acsFatCount=0;
+function addAcsFatura(data){
+  acsFatCount++;
+  const i=acsFatCount;
+  const f=data||{};
+  const list=document.getElementById('acs-faturas-list');
+  if(!list) return;
+  const div=document.createElement('div');
+  div.style.cssText='background:var(--paper2);border-radius:var(--rsm);padding:12px;margin-bottom:8px;border:1px solid var(--border)';
+  div.dataset.idx=i;
+  div.innerHTML=`<div class="fg g4" style="margin-bottom:8px">
+    <div class="f"><label>Fornecedor</label><input id="af-forn-${i}" value="${f.forn||''}" class="iy" oninput="saveAcsFaturas()"></div>
+    <div class="f"><label>Nº Fatura</label><input id="af-nfat-${i}" value="${f.nfat||''}" class="iy" oninput="saveAcsFaturas()"></div>
+    <div class="f"><label>Valor (€ C/IVA)</label><input type="number" step="0.01" id="af-val-${i}" value="${f.val||''}" class="iy" oninput="saveAcsFaturas()"></div>
+    <div class="f"><label>Estado</label><select id="af-est-${i}" onchange="saveAcsFaturas()">
+      <option value="pendente" ${(!f.estado||f.estado==='pendente')?'selected':''}>⏳ Pendente</option>
+      <option value="pago" ${f.estado==='pago'?'selected':''}>✅ Pago</option>
+    </select></div>
+  </div>
+  <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;padding:4px 10px;border-radius:4px" onclick="this.closest('div[data-idx]').remove();saveAcsFaturas()">Remover</button>`;
+  list.appendChild(div);
+}
+function saveAcsFaturas(){
+  const items=Array.from(document.getElementById('acs-faturas-list')?.children||[]);
+  const faturas=items.map(div=>{
+    const i=div.dataset.idx;
+    return {
+      forn:document.getElementById(`af-forn-${i}`)?.value||'',
+      nfat:document.getElementById(`af-nfat-${i}`)?.value||'',
+      val:document.getElementById(`af-val-${i}`)?.value||'',
+      estado:document.getElementById(`af-est-${i}`)?.value||'pendente'
+    };
+  }).filter(f=>f.forn||f.nfat||f.val);
+  if(activeEnc?.dados) activeEnc.dados.acsFaturas=faturas;
+  autoSave();
 }
 
 // ═══════════════ PAGAMENTO ACESSÓRIOS ═══════════════
@@ -1025,9 +1191,21 @@ function renderPagAcs(){
 // ═══════════════ PEDIDO PRODUÇÃO ═══════════════
 function renderProdEst(){
   const d=activeEnc?.dados||{};
+  const cors=getActiveCores();
+  const corte=d.corte||{};
+  const headers=cors.map(c=>`<th>${c}</th>`).join('');
+  const rows=SIZES.map(sz=>{
+    const totSz=cors.reduce((s,_,ci)=>s+(corte[sz]?.[ci]||0),0);
+    if(!totSz) return '';
+    const tds=cors.map((_,ci)=>`<td style="text-align:center;font-weight:700;font-family:'Courier New',monospace">${corte[sz]?.[ci]||0}</td>`).join('');
+    return `<tr><td><strong>${sz}</strong></td>${tds}<td style="font-weight:700;font-family:'Courier New',monospace">${totSz}</td></tr>`;
+  }).filter(Boolean).join('');
+  const totCors=cors.map((_,ci)=>SIZES.reduce((s,sz)=>s+(corte[sz]?.[ci]||0),0));
+  const grand=totCors.reduce((a,b)=>a+b,0);
+
   return `
     <div class="card">
-      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#ecfdf5">🏭</div>Pedido de Produção</div>
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#ecfdf5">📊</div>Pedido de Produção</div>
         ${estadoBtns('prod-est')}
       </div>
       <div class="card-body">
@@ -1036,6 +1214,16 @@ function renderProdEst(){
           ${field('pPrazo','Prazo Pretendido','date')}
           ${field('pNotas','Notas')}
         </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Peças a Produzir (do Corte)</div><div class="sdiv-l"></div></div>
+        <div style="overflow-x:auto">
+          <table class="dt">
+            <thead><tr><th>Tam.</th>${headers}<th>Total</th></tr></thead>
+            <tbody>${rows||`<tr><td colspan="${cors.length+2}" style="color:var(--ink3);font-style:italic">Preenche o pedido de corte primeiro</td></tr>`}</tbody>
+            <tfoot><tr class="tr"><td>TOTAL</td>${totCors.map(t=>`<td style="font-weight:700">${t}</td>`).join('')}<td style="font-weight:700">${grand}</td></tr></tfoot>
+          </table>
+        </div>
+        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Documentos</div><div class="sdiv-l"></div></div>
+        ${uploadSection('prod-est','Pedido de Produção')}
       </div>
     </div>
     ${navBtns('pag-acs','prod-real')}`;
@@ -1195,49 +1383,79 @@ function renderTransp(){
 function renderFin(){
   const d=activeEnc?.dados||{};
   const totPcs=getTotalPcs();
+  const pvp=parseFloat(d.pvp)||0;
+  const receita=pvp*totPcs;
+  
+  const custoTec=parseFloat(d.ptVal)||0;
+  const custoMod=parseFloat(d.pmVal)||parseFloat(d.mCusto)||0;
+  const custoAcs=(d.acsFaturas||[]).reduce((s,f)=>s+parseFloat(f.val||0),0);
+  const custoConf=parseFloat(d.pcVal)||0;
+  const custoEmb=(parseFloat(d.packNumCaixas)||0)*(parseFloat(d.packPrecoCaixa)||0);
+  const custoTransp=parseFloat(d.trCusto)||0;
+  const custoTotal=custoTec+custoMod+custoAcs+custoConf+custoEmb+custoTransp;
+  const custoTotalPc=totPcs>0?(custoTotal/totPcs).toFixed(2):0;
+  const lucro=receita-custoTotal;
+  const margem=receita>0?(lucro/receita*100).toFixed(1):0;
+
+  const row=(l,v,sub)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--paper3)">
+    <div><div style="font-weight:600">${l}</div>${sub?`<div style="font-size:11px;color:var(--ink3)">${sub}</div>`:''}</div>
+    <div style="font-family:'Courier New',monospace;font-weight:700">€ ${parseFloat(v||0).toFixed(2)}</div>
+  </div>`;
+
+  const pagRow=(fase,forn,nfat,val,dpag)=>!val?'':`<tr>
+    <td>${fase}</td><td>${forn||'—'}</td><td>${nfat||'—'}</td>
+    <td style="font-weight:700">€ ${parseFloat(val).toFixed(2)}</td>
+    <td><span class="badge ${dpag?'badge-conc':'badge-pend'}">${dpag?'✅ Pago':'⏳ Pendente'}</span></td>
+  </tr>`;
+
   return `
     <div class="card">
-      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#d1fae5">💰</div>Resumo Financeiro</div></div>
+      <div class="card-header"><div class="card-title"><div class="card-icon" style="background:#fef9c3">💰</div>Resumo Financeiro</div></div>
       <div class="card-body">
-        <div class="fg g3">
-          ${computed('fin-tec','Tecido')}
-          ${computed('fin-mod','Modulação')}
-          ${computed('fin-acs','Acessórios')}
-          ${computed('fin-conf','Confeção')}
-          ${computed('fin-emb','Embalagem')}
-          ${computed('fin-transp','Transporte')}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div class="sdiv" style="margin-top:0"><div class="sdiv-l"></div><div class="sdiv-t">Custos de Produção</div><div class="sdiv-l"></div></div>
+            ${row('Tecido',custoTec,d.ptNfat?'Fat. '+d.ptNfat:'')}
+            ${row('Modulação',custoMod,d.pmNfat?'Fat. '+d.pmNfat:'')}
+            ${row('Acessórios',custoAcs,'')}
+            ${row('Confeção',custoConf,d.pcNfat?'Fat. '+d.pcNfat:'')}
+            ${row('Embalagem',custoEmb,d.packNumCaixas?d.packNumCaixas+' caixas':'')}
+            ${row('Transporte',custoTransp,'')}
+            <div style="background:var(--ink);color:white;padding:10px 14px;border-radius:var(--rsm);display:flex;justify-content:space-between;margin-top:8px">
+              <span style="font-weight:700">TOTAL CUSTOS</span>
+              <span style="font-family:'Courier New',monospace;font-weight:800;font-size:16px">€ ${custoTotal.toFixed(2)}</span>
+            </div>
+            <div style="background:var(--paper2);padding:10px 14px;border-radius:var(--rsm);margin-top:4px;font-size:12px">
+              Custo por peça: <strong style="font-family:'Courier New',monospace">€ ${custoTotalPc}</strong> | Total peças: <strong>${totPcs}</strong>
+            </div>
+          </div>
+          <div>
+            <div class="sdiv" style="margin-top:0"><div class="sdiv-l"></div><div class="sdiv-t">Receita e Margem</div><div class="sdiv-l"></div></div>
+            ${row('PVP × Peças',receita,'€'+pvp.toFixed(2)+' × '+totPcs+' pcs')}
+            <div style="background:${lucro>=0?'var(--green)':'var(--red)'};color:white;padding:10px 14px;border-radius:var(--rsm);display:flex;justify-content:space-between;margin-top:8px">
+              <span style="font-weight:700">MARGEM ${margem}%</span>
+              <span style="font-family:'Courier New',monospace;font-weight:800;font-size:16px">€ ${lucro.toFixed(2)}</span>
+            </div>
+            <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Valores Comerciais</div><div class="sdiv-l"></div></div>
+            ${row('PVP',pvp,'')}
+            ${row('Comissão/pc',d.comVal,'')}
+            ${row('Custo Conf/pc',d.conf,'')}
+          </div>
         </div>
-        <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Totais</div><div class="sdiv-l"></div></div>
-        <div class="fg g3">
-          ${computed('fin-total','Custo Total (€)')}
-          ${computed('fin-total-pc','Custo por Peça')}
-          ${computed('fin-receita','Receita Total (€)')}
-          ${computed('fin-lucro','Lucro (€)')}
-          ${computed('fin-margem','Margem (%)')}
-        </div>
+
         <div class="sdiv"><div class="sdiv-l"></div><div class="sdiv-t">Pagamentos a Fornecedores</div><div class="sdiv-l"></div></div>
-        ${buildPagResumo()}
+        <table class="dt">
+          <thead><tr><th>Fase</th><th>Fornecedor</th><th>Nº Fatura</th><th>Valor</th><th>Estado</th></tr></thead>
+          <tbody>
+            ${pagRow('Tecido',d.tForn,d.ptNfat,d.ptVal,d.ptDpag)}
+            ${pagRow('Modulação',d.mResp,d.pmNfat,d.pmVal,d.pmDpag)}
+            ${(d.acsFaturas||[]).map(f=>pagRow('Acessórios',f.forn,f.nfat,f.val,f.estado==='pago'?'sim':'')).join('')}
+            ${pagRow('Confeção',d.confecao,d.pcNfat,d.pcVal,d.pcDpag)}
+          </tbody>
+        </table>
       </div>
     </div>
     ${navBtns('transp',null)}`;
-}
-
-function buildPagResumo(){
-  const d=activeEnc?.dados||{};
-  const items=[
-    {nome:'Tecido', forn:d.tForn||'—', nfat:d.ptNfat, val:d.ptVal, dpag:d.ptDpag, est:d.ptEstado},
-    {nome:'Modulação', forn:d.mResp||'—', nfat:d.pmNfat, val:d.pmVal, dpag:d.pmDpag, est:d.pmEstado},
-    {nome:'Acessórios', forn:'—', nfat:d.paNfat, val:d.paVal, dpag:d.paDpag, est:d.paEstado},
-    {nome:'Confeção', forn:d.confecao||'—', nfat:d.pcNfat, val:d.pcVal, dpag:d.pcDpag, est:d.pcEstado},
-  ].filter(i=>i.val||i.nfat);
-  if(!items.length) return '<p style="color:var(--ink3);font-size:12px">Sem pagamentos registados</p>';
-  return `<table class="dt"><thead><tr><th>Fase</th><th>Fornecedor</th><th>Nº Fatura</th><th>Valor</th><th>Data Pag.</th><th>Estado</th></tr></thead>
-    <tbody>${items.map(i=>`<tr>
-      <td>${i.nome}</td><td>${i.forn}</td><td>${i.nfat||'—'}</td>
-      <td style="font-weight:700">${i.val?'€ '+parseFloat(i.val).toFixed(2):'—'}</td>
-      <td>${i.dpag||'—'}</td>
-      <td><span class="badge ${i.est==='pago'?'badge-conc':'badge-pend'}">${i.est==='pago'?'✅ Pago':'⏳ Pendente'}</span></td>
-    </tr>`).join('')}</tbody></table>`;
 }
 
 // ── BASE DE DADOS ──
